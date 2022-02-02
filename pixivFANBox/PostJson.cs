@@ -3,7 +3,6 @@ using System.Collections.Generic;
 
 namespace pixivFanBox
 {
-    // Root myDeserializedClass = JsonConvert.DeserializeObject<Root>(myJsonResponse); 
     public class Block
     {
         public string type { get; set; }

@@ -23,7 +23,6 @@ public static class Log
 
     public static void FormatColorWrite(string text, ConsoleColor consoleColor = ConsoleColor.Gray, bool newLine = true)
     {
-        //text = DateTime.Now.ToString() + " " + text;
         Console.ForegroundColor = consoleColor;
         if (newLine) Console.WriteLine(text);
         else Console.Write(text);

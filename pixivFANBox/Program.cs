@@ -56,7 +56,7 @@ namespace pixivFanBox
                     Log.Error("請將Fanbox的Cookie中的\"FANBOXSESSID\"值複製後貼到此處並按下Enter");
                     Log.Info("(例12754216_VWER3435edrsdy5234dfsu6562oQbq)> ", false);
                     string cookie = Console.ReadLine();
-                    handler.CookieContainer.Add(httpClient.BaseAddress, new Cookie("FANBOXSESSID", cookie));
+                    handler.CookieContainer.Add(new Uri("https://fanbox.cc"), new Cookie("FANBOXSESSID", cookie, "/", ".fanbox.cc"));
 
                     try
                     {
@@ -291,8 +291,9 @@ namespace pixivFanBox
                                     sb.AppendLine($"{postJson.body.text}");
 
                                 string html = Markdown.ToHtml(sb.ToString(), pipelineBuilder.Build());
-                                await File.WriteAllTextAsync($"{saveName}{GetEnvSlash()}Post.html", html);
+                                await File.WriteAllTextAsync($"{saveName}{GetEnvSlash()}Post.html", html); //可能會有非同步存取的問題
 
+                                #region gigafile *尚未驗證是否功能正常
                                 Regex regex = new Regex(@"https:\/\/\d{1,2}\.gigafile\.nu\/\d{4}-.{33}", RegexOptions.Multiline);
                                 if (regex.IsMatch(html))
                                 {
@@ -330,6 +331,7 @@ namespace pixivFanBox
                                         }
                                     }
                                 }
+                                #endregion
 
                                 if (html.Contains("drive.google.com"))
                                 {
@@ -417,7 +419,7 @@ namespace pixivFanBox
         }
 
 
-        static async Task<string> GetCookieFromWebServerAsync(HttpClient httpClient, string url, string cookieName = "")
+        static async Task<string> GetCookieFromWebServerAsync(HttpClient httpClient, string url, string cookieName = "") //尚未驗證是否正常
         {
             if (string.IsNullOrEmpty(cookieName))
                 throw new NullReferenceException(cookieName);
@@ -438,7 +440,7 @@ namespace pixivFanBox
             return result;
         }
 
-        static async Task<string> GetFilenameFromWebServerAsync(HttpClient httpClient, string url)
+        static async Task<string> GetFilenameFromWebServerAsync(HttpClient httpClient, string url) //尚未驗證是否正常
         {
             string result = "";
 
@@ -452,26 +454,6 @@ namespace pixivFanBox
             {
                 Console.WriteLine(ex.ToString());
             }
-
-            //try
-            //{
-            //    var req = WebRequest.Create(url);
-            //    req.Method = "HEAD";
-            //    req.Headers.Add(HttpRequestHeader.Cookie, gfCookie);
-
-            //    using (WebResponse resp = req.GetResponse())
-            //    {
-            //        // Try to extract the filename from the Content-Disposition header
-            //        if (!string.IsNullOrEmpty(resp.Headers["Content-Disposition"]))
-            //        {
-            //            result = resp.Headers["Content-Disposition"].Substring(resp.Headers["Content-Disposition"].IndexOf("filename*=UTF-8''") + "filename*=UTF-8''".Length).Replace("\"", "");
-            //        }
-            //    }
-            //}
-            //catch (Exception ex)
-            //{
-            //    Console.WriteLine(ex.ToString());
-            //}
 
             return HttpUtility.UrlDecode(result, Encoding.UTF8);
         }
