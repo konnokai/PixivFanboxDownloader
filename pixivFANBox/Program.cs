@@ -110,25 +110,29 @@ namespace pixivFanBox
 
                         do
                         {
-                            string json = (await httpClient.GetStringAsync(apiUrl.Replace("https://api.fanbox.cc/", ""))).Substring(8);
+                            string json = (await httpClient.GetStringAsync(apiUrl)).Substring(8);
                             json = json.Substring(0, json.Length - 1);
 
-                            PostJson postJsons = JsonConvert.DeserializeObject<PostJson>(json, new JsonSerializerSettings() { ReferenceLoopHandling = ReferenceLoopHandling.Ignore, TypeNameAssemblyFormatHandling = TypeNameAssemblyFormatHandling.Full });
-                            apiUrl = postJsons.nextUrl;
-                            maxPostId = Math.Max(postJsons.items.Max((x) => int.Parse(x.id)), maxPostId);
+                            PostListCreatorJson postListCreatorJson = JsonConvert.DeserializeObject<PostListCreatorJson>(json, new JsonSerializerSettings() { ReferenceLoopHandling = ReferenceLoopHandling.Ignore, TypeNameAssemblyFormatHandling = TypeNameAssemblyFormatHandling.Full });
+                            apiUrl = postListCreatorJson.nextUrl?.Replace("https://api.fanbox.cc/", "");
+                            maxPostId = Math.Max(postListCreatorJson.items.Max((x) => int.Parse(x.id)), maxPostId);
 
                             if (lastSavePostId.ContainsKey(creators.creatorId))
-                                postJsons.items = postJsons.items.Where((x) => int.Parse(x.id) > lastSavePostId[creators.creatorId]).ToList();
+                                postListCreatorJson.items = postListCreatorJson.items.Where((x) => int.Parse(x.id) > lastSavePostId[creators.creatorId]).ToList();
 
-                            if (postJsons.items.Count == 0)
+                            if (postListCreatorJson.items.Count == 0)
                             {
                                 Log.Info("無最新貼文");
                                 break;
                             }
                             else if (isFirst) { Console.WriteLine(); isFirst = false; }
 
-                            foreach (var postJson in postJsons.items)
+                            foreach (var postListCreator in postListCreatorJson.items)
                             {
+                                json = (await httpClient.GetStringAsync($"post.info?postId={postListCreator.id}")).Substring(8);
+                                json = json.Substring(0, json.Length - 1);
+                                var postJson = JsonConvert.DeserializeObject<PostInfoJson>(json);
+
                                 string saveName = GetSaveFolderName(postJson.creatorId, postJson.user.name) + $"{GetEnvSlash()}[{postJson.publishedDatetime:yyyyMMdd-HHmmss}] ({postJson.id}) {MakeFileNameValid(postJson.title)}";
                                 int i = 0;
                                 if (Directory.Exists(saveName)) continue;
@@ -138,8 +142,17 @@ namespace pixivFanBox
 
                                 if (postJson.body == null)
                                 {
-                                    Log.Error($"無法取得附件資訊，請確認是否達到贊助門檻 (現在: {creators.fee}円，需要: {postJson.feeRequired}円)");
-                                    continue;
+                                    if (creators.fee != postJson.feeRequired)
+                                    {
+                                        Log.Error($"無法取得附件資訊，請確認是否達到贊助門檻 (現在: {creators.fee}円，需要: {postJson.feeRequired}円)");
+                                        continue;
+                                    }
+                                    else
+                                    {
+                                        Log.Error($"postJson.body 錯誤");
+                                        Console.ReadKey();
+                                        return;
+                                    }
                                 }
 
                                 Directory.CreateDirectory(saveName);
@@ -356,7 +369,7 @@ namespace pixivFanBox
                     else if (ex.Message.Contains("401"))
                         Log.Error($"{cookieId}的Cookie錯誤，請重新輸入Cookie");
                     else
-                        Log.Error($"{ex.Message}\r\n{ex.StackTrace}");
+                        Log.Error($"{ex}");
 
                     Console.ReadKey();
                     return;

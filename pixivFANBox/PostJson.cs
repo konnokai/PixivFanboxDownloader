@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-
-namespace pixivFanBox
+﻿namespace pixivFanBox
 {
     public class Block
     {
@@ -52,7 +49,7 @@ namespace pixivFanBox
         public string iconUrl { get; set; }
     }
 
-    public class Item
+    public class PostInfoJson
     {
         public string id { get; set; }
         public string title { get; set; }
@@ -73,9 +70,9 @@ namespace pixivFanBox
         public bool hasAdultContent { get; set; }
     }
 
-    public class PostJson
+    public class PostListCreatorJson
     {
-        public List<Item> items { get; set; }
-        public string nextUrl { get; set; }
+        public List<PostInfoJson> items { get; set; }
+        public string? nextUrl { get; set; }
     }
 }
