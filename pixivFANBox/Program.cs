@@ -331,7 +331,7 @@ namespace pixivFanBox
                                                 string downloadUrl = item.Replace("nu/", "nu/download.php?file=");
                                                 var uri = new Uri(downloadUrl);
                                                 string gfCookie = await GetCookieFromWebServerAsync(httpClient, item, "gfsid");
-                                                handler.CookieContainer.Add(uri, new Cookie("gfsid", gfCookie, "/", uri.Host));
+                                                handler.CookieContainer.Add(new Cookie("gfsid", gfCookie, "/", uri.Host));
 
                                                 string fileName = MakeFileNameValid(await GetFilenameFromWebServerAsync(httpClient, downloadUrl));
 
@@ -443,7 +443,9 @@ namespace pixivFanBox
             {
                 var head = await httpClient.SendAsync(new HttpRequestMessage(HttpMethod.Head, url));
                 head.EnsureSuccessStatusCode();
-                result = head.Headers.First((x) => x.Key == "Set-Cookie").Value.First((x) => x.StartsWith($"{cookieName}=")).Replace($"{cookieName}=", "");
+                result = head.Headers.First((x) => x.Key == "Set-Cookie").Value.First((x) => x.StartsWith($"{cookieName}="));
+                Regex regex = new Regex(cookieName + @"=(.*);");
+                result = regex.Match(result).Groups[1].Value;
             }
             catch (Exception ex)
             {
@@ -461,7 +463,11 @@ namespace pixivFanBox
             {
                 var head = await httpClient.SendAsync(new HttpRequestMessage(HttpMethod.Head, url));
                 head.EnsureSuccessStatusCode();
-                result = head.Headers.First((x) => x.Key == "Content-Disposition").Value.First((x) => x.StartsWith("filename*=UTF-8''")).Replace($"filename*=UTF-8''", "");
+
+                if (string.IsNullOrEmpty(head.Content.Headers.ContentDisposition.FileNameStar))
+                    return "";
+
+                result = head.Content.Headers.ContentDisposition.FileNameStar;
             }
             catch (Exception ex)
             {
