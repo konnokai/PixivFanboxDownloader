@@ -1,16 +1,11 @@
 ﻿using Markdig;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Net;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Web;
-using System.Net.Http.Headers;
-using System.Runtime.InteropServices;
 
 namespace pixivFanBox
 {
@@ -47,6 +42,7 @@ namespace pixivFanBox
             httpClient.DefaultRequestHeaders.Referrer = new Uri("https://www.fanbox.cc/");
             httpClient.DefaultRequestHeaders.Add("Origin", "https://www.fanbox.cc");
             httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
+            httpClient.Timeout = TimeSpan.FromMinutes(10);
 
             if (!File.Exists("Cookie.txt"))
             {
@@ -61,7 +57,7 @@ namespace pixivFanBox
                     try
                     {
                         Console.Clear();
-                        var result= await httpClient.GetStringAsync("bell.countUnread");
+                        var result = await httpClient.GetStringAsync("bell.countUnread");
 
                         File.WriteAllText("Cookie.txt", cookie);
                         Thread.Sleep(1000);
@@ -253,7 +249,7 @@ namespace pixivFanBox
                                             try
                                             {
                                                 string imageName = $"{i}{Path.GetExtension(item.Key)}";
-                                                await File.WriteAllBytesAsync(saveName + GetEnvSlash() + imageName, await httpClient.GetByteArrayAsync(item.Key)); 
+                                                await File.WriteAllBytesAsync(saveName + GetEnvSlash() + imageName, await httpClient.GetByteArrayAsync(item.Key));
                                                 sb.AppendLine($"![{imageName}]({imageName})\r\n");
                                             }
                                             catch (Exception)
@@ -306,7 +302,6 @@ namespace pixivFanBox
                                 string html = Markdown.ToHtml(sb.ToString(), pipelineBuilder.Build());
                                 await File.WriteAllTextAsync($"{saveName}{GetEnvSlash()}Post.html", html); //可能會有非同步存取的問題
 
-                                #region gigafile *尚未驗證是否功能正常
                                 Regex regex = new Regex(@"https:\/\/\d{1,2}\.gigafile\.nu\/\d{4}-.{33}", RegexOptions.Multiline);
                                 if (regex.IsMatch(html))
                                 {
@@ -344,7 +339,6 @@ namespace pixivFanBox
                                         }
                                     }
                                 }
-                                #endregion
 
                                 if (html.Contains("drive.google.com"))
                                 {
@@ -404,7 +398,11 @@ namespace pixivFanBox
             if (filename.EndsWith("."))
                 filename = Regex.Replace(filename, @"\.+$", "");
 
-            return filename.Trim();
+            filename = filename.Trim();
+            if (string.IsNullOrEmpty(filename))
+                filename = "NA";
+
+            return filename;
         }
 
         static string MakePathNameValid(string pathname)
@@ -427,8 +425,11 @@ namespace pixivFanBox
             }
 
             pathname = pathname.Trim(new char[] { '_' });
+            pathname = pathname.Trim();
+            if (string.IsNullOrEmpty(pathname))
+                pathname = "No Title";
 
-            return pathname.Trim();
+            return pathname;
         }
 
 

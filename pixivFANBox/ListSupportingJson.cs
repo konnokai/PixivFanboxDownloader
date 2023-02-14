@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-namespace pixivFanBox
+﻿namespace pixivFanBox
 {
     public class ListSupportingUser
     {

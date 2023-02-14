@@ -1,5 +1,4 @@
-﻿using System;
-public static class Log
+﻿public static class Log
 {
     public static void Green(string text, bool newLine = true)
     {
