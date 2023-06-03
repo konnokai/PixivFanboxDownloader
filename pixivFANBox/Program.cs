@@ -94,7 +94,7 @@ namespace pixivFanBox
 
                     List<string> supportingCreatorList;
                     if (!listSupporting.body.Any()) supportingCreatorList = new List<string>();
-                    else supportingCreatorList = listSupporting.body.Select((x) => $"{x.user.name} / {x.fee}").ToList();
+                    else supportingCreatorList = listSupporting.body.Select((x) => $"{x.user.name} ({x.creatorId}) / {x.fee}").ToList();
                     userSupportingDic.Add(cookieId, supportingCreatorList);
 
                     foreach (var creators in listSupporting.body)
