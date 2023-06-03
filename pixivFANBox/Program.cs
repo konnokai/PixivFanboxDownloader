@@ -101,6 +101,13 @@ namespace pixivFanBox
                     {
                         Console.Title = $"FANBox下載工具 - 對象: {creators.user.name} / 贊助金額: {creators.fee}";
                         Log.Green($"下載對象: {creators.user.name} (贊助金額: {creators.fee}) ", false);
+
+                        if (creators.creatorId == "dikko")
+                        {
+                            Log.Warn("Pass");
+                            continue;
+                        }
+
                         string apiUrl = $"post.listCreator?creatorId={creators.creatorId}&limit=10";
                         int maxPostId = 0; bool isFirst = true;
 
