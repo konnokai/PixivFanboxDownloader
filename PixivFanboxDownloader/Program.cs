@@ -120,7 +120,7 @@ namespace PixivFanboxDownloader
 
                         string json = await httpClient.GetStringAsync($"post.paginateCreator?creatorId={creators.CreatorId}");
                         var paginateCreator = JsonConvert.DeserializeObject<Json.Post.PaginateCreator>(json).Body;
-                        Log.Info($"分頁數量: {paginateCreator.Count}", false);
+                        Log.Info($"(分頁數量: {paginateCreator.Count}) ", false);
 
                         int maxPostId = 0; bool isFirst = true;
                         foreach (var paginateUrl in paginateCreator)
@@ -143,7 +143,7 @@ namespace PixivFanboxDownloader
                             foreach (var postListCreator in postListCreatorJson.Body)
                             {
                                 json = await httpClient.GetStringAsync($"post.info?postId={postListCreator.Id}");
-                                var info = JsonConvert.DeserializeObject<Json.Post.Info.Info>(json).Body;
+                                var info = JsonConvert.DeserializeObject<Json.Post.Info.Info>(json).InfoBody;
 
                                 string saveName = GetSaveFolderName(info.CreatorId, info.User.Name) + $"{GetEnvSlash()}[{info.PublishedDatetime:yyyyMMdd-HHmmss}] ({info.Id}) {MakeFileNameValid(info.Title)}";
                                 int i = 0;
@@ -152,7 +152,7 @@ namespace PixivFanboxDownloader
                                 Log.Green($"{info.Id} - {info.Title} ({info.FeeRequired}円)");
                                 Log.Info($"上傳時間: {info.PublishedDatetime:yyyy/MM/dd HH-mm}");
 
-                                if (info.BlockBody == null)
+                                if (info.Body == null)
                                 {
                                     if (creators.Fee != info.FeeRequired)
                                     {
@@ -172,7 +172,7 @@ namespace PixivFanboxDownloader
                                 sb.AppendLine($"# {info.Title}\r\n");
 
                                 //JObject jobject = JObject.Parse(JsonConvert.SerializeObject(json))["body"].ToObject<JObject>();
-                                if (info.BlockBody.Blocks != null)
+                                if (info.Body.Blocks != null)
                                 {
                                     var jobject = JObject.Parse(json)["body"]["body"].ToObject<JObject>();
                                     var jTokens = jobject["blocks"].Children();
@@ -213,7 +213,7 @@ namespace PixivFanboxDownloader
                                     }
 
                                     i = 0;
-                                    foreach (var item in info.BlockBody.Blocks)
+                                    foreach (var item in info.Body.Blocks)
                                     {
                                         switch (item.Type)
                                         {
@@ -250,16 +250,16 @@ namespace PixivFanboxDownloader
                                     }
                                 }
 
-                                if (info.Images != null) Log.Info($"圖片數量: {info.Images.Count}");
-                                if (info.Files != null) Log.Info($"檔案數量: {info.Files.Count}");
+                                if (info.Body.Images != null) Log.Info($"圖片數量: {info.Body.Images.Count}");
+                                if (info.Body.Files != null) Log.Info($"檔案數量: {info.Body.Files.Count}");
                                 using (var progressBar = new ProgressBar())
                                 {
-                                    if (info.Images != null) // 尚未測試
+                                    if (info.Body.Images != null) // 尚未測試
                                     {
                                         i = 0;
-                                        foreach (var item in info.Images.Select((x) => new KeyValuePair<string, string>(x.OriginalUrl, x.ThumbnailUrl)))
+                                        foreach (var item in info.Body.Images.Select((x) => new KeyValuePair<string, string>(x.OriginalUrl, x.ThumbnailUrl)))
                                         {
-                                            progressBar.Report(i++ / (double)info.Images.Count);
+                                            progressBar.Report(i++ / (double)info.Body.Images.Count);
                                             try
                                             {
                                                 string imageName = $"{i}{Path.GetExtension(item.Key)}";
@@ -283,12 +283,12 @@ namespace PixivFanboxDownloader
                                         }
                                     }
 
-                                    if (info.Files != null)
+                                    if (info.Body.Files != null)
                                     {
                                         i = 0;
-                                        foreach (var item in info.Files)
+                                        foreach (var item in info.Body.Files)
                                         {
-                                            progressBar.Report(i++ / (double)info.Files.Count);
+                                            progressBar.Report(i++ / (double)info.Body.Files.Count);
                                             try
                                             {
                                                 string fileName = MakeFileNameValid($"{item.Name.Replace(" ", "_")}.{item.Extension}");

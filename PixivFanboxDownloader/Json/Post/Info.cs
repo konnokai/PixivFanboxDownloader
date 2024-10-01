@@ -7,7 +7,7 @@ namespace PixivFanboxDownloader.Json.Post.Info
     public class Info
     {
         [JsonProperty("body")]
-        public Body Body { get; set; }
+        public InfoBody InfoBody { get; set; }
     }
 
     public class Block
@@ -25,7 +25,7 @@ namespace PixivFanboxDownloader.Json.Post.Info
         public string ImageId { get; set; }
     }
 
-    public class Body
+    public class InfoBody
     {
         [JsonProperty("id")]
         public string Id { get; set; }
@@ -64,7 +64,7 @@ namespace PixivFanboxDownloader.Json.Post.Info
         public string CoverImageUrl { get; set; }
 
         [JsonProperty("body")]
-        public BlockBody BlockBody { get; set; }
+        public InnerBody Body { get; set; }
 
         [JsonProperty("imageForShare")]
         public string ImageForShare { get; set; }
@@ -74,18 +74,18 @@ namespace PixivFanboxDownloader.Json.Post.Info
 
         [JsonProperty("text")]
         public string Text { get; set; }
+    }
+
+    public class InnerBody
+    {
+        [JsonProperty("blocks")]
+        public List<Block> Blocks { get; set; }
 
         [JsonProperty("images")]
         public List<Image> Images { get; set; }
 
         [JsonProperty("files")]
         public List<File> Files { get; set; }
-    }
-
-    public class BlockBody
-    {
-        [JsonProperty("blocks")]
-        public List<Block> Blocks { get; set; }
     }
 
     public class Image
