@@ -1,4 +1,5 @@
-﻿using Markdig;
+﻿using FlareSolverrSharp;
+using Markdig;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Net;
@@ -7,15 +8,14 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Web;
 
-namespace pixivFanBox
+#nullable disable
+
+namespace PixivFanboxDownloader
 {
-#pragma warning disable CS8600 // 正在將 Null 常值或可能的 Null 值轉換為不可為 Null 的型別。
-#pragma warning disable CS8602 // 可能 null 參考的取值 (dereference)。
-#pragma warning disable CS8603 // 可能有 Null 參考傳回。
-#pragma warning disable CS8604 // 可能有 Null 參考引數。
     class Program
     {
-        static Dictionary<string, string>? creatorConvertList;
+        static Dictionary<string, string> creatorConvertList;
+        private static readonly ProgramConfig _programConfig = new();
 
         [STAThread]
         static void Main(string[] args)
@@ -26,9 +26,11 @@ namespace pixivFanBox
         static async Task Run()
         {
             Console.Clear();
-            Console.Title = $"FANBox下載工具";
+            Console.Title = $"Fanbox 下載工具";
             Console.InputEncoding = Encoding.UTF8;
             Console.OutputEncoding = Encoding.UTF8;
+
+            _programConfig.InitProgramConfig();
 
             Dictionary<string, int> lastSavePostId = new Dictionary<string, int>();
             if (File.Exists("LastSavePostId.json"))
@@ -36,9 +38,17 @@ namespace pixivFanBox
 
             creatorConvertList = GetCreatorConvertList();
 
-            HttpClientHandler handler = new HttpClientHandler();
-            HttpClient httpClient = new HttpClient(handler, true);
-            httpClient.BaseAddress = new Uri("https://api.fanbox.cc/");
+            var clientHandler = new HttpClientHandler();
+            var handler = new ClearanceHandler(_programConfig.FlareSolverrApiUrl)
+            {
+                MaxTimeout = 60000,
+                InnerHandler = clientHandler
+            };
+
+            var httpClient = new HttpClient(handler, false)
+            {
+                BaseAddress = new Uri("https://api.fanbox.cc/")
+            };
             httpClient.DefaultRequestHeaders.Referrer = new Uri("https://www.fanbox.cc/");
             httpClient.DefaultRequestHeaders.Add("Origin", "https://www.fanbox.cc");
             httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
@@ -48,11 +58,11 @@ namespace pixivFanBox
             {
                 while (true)
                 {
-                    Log.Error("找不到Cookie.txt");
-                    Log.Error("請將Fanbox的Cookie中的\"FANBOXSESSID\"值複製後貼到此處並按下Enter");
-                    Log.Info("(例12754216_VWER3435edrsdy5234dfsu6562oQbq)> ", false);
+                    Log.Error("找不到 Cookie.txt");
+                    Log.Error("請將 Fanbox 的 Cookie 中的 \"FANBOXSESSID\" 值複製後貼到此處並按下 Enter");
+                    Log.Info("(例: 12754216_VWER3435edrsdy5234dfsu6562oQbq)> ", false);
                     string cookie = Console.ReadLine();
-                    handler.CookieContainer.Add(new Uri("https://fanbox.cc"), new Cookie("FANBOXSESSID", cookie, "/", ".fanbox.cc"));
+                    clientHandler.CookieContainer.Add(new Uri("https://fanbox.cc"), new Cookie("FANBOXSESSID", cookie, "/", ".fanbox.cc"));
 
                     try
                     {
@@ -68,107 +78,104 @@ namespace pixivFanBox
                     catch (Exception ex)
                     {
                         if (ex.Message.Contains("400"))
-                            Log.Error("缺少Cookie，請重新輸入Cookie");
+                            Log.Error("缺少 Cookie，請重新輸入 Cookie");
                         else if (ex.Message.Contains("401"))
-                            Log.Error("Cookie錯誤，請重新輸入Cookie");
+                            Log.Error("Cookie 錯誤，請重新輸入 Cookie");
                         else
                             Log.Error(ex.Message);
                     }
                 }
             }
 
-            Dictionary<string, List<string>> userSupportingDic = new Dictionary<string, List<string>>();
+            var userSupportingDic = new Dictionary<string, List<string>>();
             foreach (var cookie in File.ReadAllLines("Cookie.txt"))
             {
                 if (string.IsNullOrWhiteSpace(cookie))
                     continue;
 
                 string cookieId = cookie.Split(new char[] { '_' })[0];
-                handler.CookieContainer.Add(new Uri("https://fanbox.cc"), new Cookie("FANBOXSESSID", cookie, "/", ".fanbox.cc"));
+                clientHandler.CookieContainer.Add(new Uri("https://fanbox.cc"), new Cookie("FANBOXSESSID", cookie, "/", ".fanbox.cc"));
 
                 try
                 {
                     string listSupportingJson = await httpClient.GetStringAsync("plan.listSupporting");
-                    ListSupportingJson? listSupporting = JsonConvert.DeserializeObject<ListSupportingJson>(listSupportingJson);
-                    Log.Info($"已贊助的人數: {listSupporting.body.Count}");
+                    Json.Plan.ListSupporting.ListSupporting listSupporting = JsonConvert.DeserializeObject<Json.Plan.ListSupporting.ListSupporting>(listSupportingJson);
+                    Log.Info($"已贊助的人數: {listSupporting.Body.Count}");
 
                     List<string> supportingCreatorList;
-                    if (!listSupporting.body.Any()) supportingCreatorList = new List<string>();
-                    else supportingCreatorList = listSupporting.body.Select((x) => $"{x.user.name} ({x.creatorId}) / {x.fee}").ToList();
+                    if (!listSupporting.Body.Any()) supportingCreatorList = new List<string>();
+                    else supportingCreatorList = listSupporting.Body.Select((x) => $"{x.User.Name} ({x.CreatorId}) / {x.Fee}").ToList();
                     userSupportingDic.Add(cookieId, supportingCreatorList);
 
-                    foreach (var creators in listSupporting.body)
+                    foreach (var creators in listSupporting.Body)
                     {
-                        Console.Title = $"FANBox下載工具 - 對象: {creators.user.name} / 贊助金額: {creators.fee}";
-                        Log.Green($"下載對象: {creators.user.name} (贊助金額: {creators.fee}) ", false);
+                        Console.Title = $"Fanbox 下載工具 - 對象: {creators.User.Name} / 贊助金額: {creators.Fee}円";
+                        Log.Green($"下載對象: {creators.User.Name} ({creators.CreatorId}) (贊助金額: {creators.Fee}円) ", false);
 
-                        if (creators.creatorId == "dikko")
+                        if (_programConfig.IgnoreCreateList.Contains(creators.CreatorId))
                         {
                             Log.Warn("Pass");
                             continue;
                         }
 
-                        string apiUrl = $"post.listCreator?creatorId={creators.creatorId}&limit=10";
+                        string json = await httpClient.GetStringAsync($"post.paginateCreator?creatorId={creators.CreatorId}");
+                        var paginateCreator = JsonConvert.DeserializeObject<Json.Post.PaginateCreator>(json).Body;
+                        Log.Info($"分頁數量: {paginateCreator.Count}", false);
+
                         int maxPostId = 0; bool isFirst = true;
-
-                        do
+                        foreach (var paginateUrl in paginateCreator)
                         {
-                            string json = (await httpClient.GetStringAsync(apiUrl)).Substring(8);
-                            json = json.Substring(0, json.Length - 1);
+                            json = await httpClient.GetStringAsync(paginateUrl.Replace("https://api.fanbox.cc/", ""));
+                            var postListCreatorJson = JsonConvert.DeserializeObject<Json.Post.ListCreator.ListCreator>(json, new JsonSerializerSettings() { ReferenceLoopHandling = ReferenceLoopHandling.Ignore, TypeNameAssemblyFormatHandling = TypeNameAssemblyFormatHandling.Full })!;
 
-                            PostListCreatorJson postListCreatorJson = JsonConvert.DeserializeObject<PostListCreatorJson>(json, new JsonSerializerSettings() { ReferenceLoopHandling = ReferenceLoopHandling.Ignore, TypeNameAssemblyFormatHandling = TypeNameAssemblyFormatHandling.Full });
-                            apiUrl = postListCreatorJson.nextUrl?.Replace("https://api.fanbox.cc/", "");
-                            maxPostId = Math.Max(postListCreatorJson.items.Max((x) => int.Parse(x.id)), maxPostId);
+                            maxPostId = Math.Max(postListCreatorJson.Body.Max((x) => int.Parse(x.Id)), maxPostId);
 
-                            if (lastSavePostId.ContainsKey(creators.creatorId))
-                                postListCreatorJson.items = postListCreatorJson.items.Where((x) => int.Parse(x.id) > lastSavePostId[creators.creatorId]).ToList();
+                            if (lastSavePostId.ContainsKey(creators.CreatorId))
+                                postListCreatorJson.Body = postListCreatorJson.Body.Where((x) => int.Parse(x.Id) > lastSavePostId[creators.CreatorId]).ToList();
 
-                            if (postListCreatorJson.items.Count == 0)
+                            if (!postListCreatorJson.Body.Any())
                             {
                                 Log.Info("無最新貼文");
                                 break;
                             }
                             else if (isFirst) { Console.WriteLine(); isFirst = false; }
 
-                            foreach (var postListCreator in postListCreatorJson.items)
+                            foreach (var postListCreator in postListCreatorJson.Body)
                             {
-                                json = (await httpClient.GetStringAsync($"post.info?postId={postListCreator.id}")).Substring(8);
-                                json = json.Substring(0, json.Length - 1);
-                                var postJson = JsonConvert.DeserializeObject<PostInfoJson>(json);
+                                json = await httpClient.GetStringAsync($"post.info?postId={postListCreator.Id}");
+                                var info = JsonConvert.DeserializeObject<Json.Post.Info.Info>(json).Body;
 
-                                string saveName = GetSaveFolderName(postJson.creatorId, postJson.user.name) + $"{GetEnvSlash()}[{postJson.publishedDatetime:yyyyMMdd-HHmmss}] ({postJson.id}) {MakeFileNameValid(postJson.title)}";
+                                string saveName = GetSaveFolderName(info.CreatorId, info.User.Name) + $"{GetEnvSlash()}[{info.PublishedDatetime:yyyyMMdd-HHmmss}] ({info.Id}) {MakeFileNameValid(info.Title)}";
                                 int i = 0;
                                 if (Directory.Exists(saveName)) continue;
 
-                                Log.Green($"標題: {postJson.id} - {postJson.title}");
-                                Log.Info($"上傳時間: {postJson.publishedDatetime:yyyy/MM/dd HH-mm}");
+                                Log.Green($"{info.Id} - {info.Title} ({info.FeeRequired}円)");
+                                Log.Info($"上傳時間: {info.PublishedDatetime:yyyy/MM/dd HH-mm}");
 
-                                if (postJson.body == null)
+                                if (info.BlockBody == null)
                                 {
-                                    if (creators.fee != postJson.feeRequired)
+                                    if (creators.Fee != info.FeeRequired)
                                     {
-                                        Log.Error($"無法取得附件資訊，請確認是否達到贊助門檻 (現在: {creators.fee}円，需要: {postJson.feeRequired}円)");
+                                        Log.Error($"無法取得附件資訊，請確認是否達到贊助門檻 (現在: {creators.Fee}円，需要: {info.FeeRequired}円)");
                                         continue;
                                     }
                                     else
                                     {
-                                        Log.Error($"postJson.body 錯誤");
+                                        Log.Error($"info.Body 錯誤");
                                         Console.ReadKey();
                                         return;
                                     }
                                 }
 
                                 Directory.CreateDirectory(saveName);
-                                StringBuilder sb = new StringBuilder();
-                                sb.AppendLine($"# {postJson.title}\r\n");
+                                var sb = new StringBuilder();
+                                sb.AppendLine($"# {info.Title}\r\n");
 
-                                JObject jobject = JObject.Parse(JsonConvert.SerializeObject(postJson))["body"].ToObject<JObject>();
-                                if (postJson.body.blocks != null)
+                                //JObject jobject = JObject.Parse(JsonConvert.SerializeObject(json))["body"].ToObject<JObject>();
+                                if (info.BlockBody.Blocks != null)
                                 {
-                                    json = (await httpClient.GetStringAsync($"post.info?postId={postJson.id}")).Substring(8);
-                                    json = json.Substring(0, json.Length - 1);
-                                    jobject = JObject.Parse(json)["body"].ToObject<JObject>();
-                                    var jTokens = JObject.Parse(json)["body"].ToObject<JObject>()["blocks"].Children();
+                                    var jobject = JObject.Parse(json)["body"]["body"].ToObject<JObject>();
+                                    var jTokens = jobject["blocks"].Children();
 
                                     var imageList = jTokens.Where((x) => x["type"].Value<string>() == "image");
                                     var fileList = jTokens.Where((x) => x["type"].Value<string>() == "file");
@@ -176,7 +183,7 @@ namespace pixivFanBox
                                     Log.Info($"圖片數量: {imageList.Count()}");
                                     Log.Info($"檔案數量: {fileList.Count()}");
 
-                                    using (ProgressBar progressBar = new ProgressBar())
+                                    using (var progressBar = new ProgressBar())
                                     {
                                         i = 0;
                                         foreach (var item in imageList)
@@ -206,18 +213,18 @@ namespace pixivFanBox
                                     }
 
                                     i = 0;
-                                    foreach (var item in postJson.body.blocks)
+                                    foreach (var item in info.BlockBody.Blocks)
                                     {
-                                        switch (item.type)
+                                        switch (item.Type)
                                         {
                                             case "header":
-                                                sb.AppendLine($"## {item.text}\r\n");
+                                                sb.AppendLine($"## {item.Text}\r\n");
                                                 break;
                                             case "p":
-                                                sb.AppendLine($"{item.text}\r\n");
+                                                sb.AppendLine($"{item.Text}\r\n");
                                                 break;
                                             case "file":
-                                                var file = jobject["fileMap"][item.fileId];
+                                                var file = jobject["fileMap"][item.FileId];
                                                 string fileName = MakeFileNameValid($"{file["name"]}.{file["extension"]}");
                                                 sb.AppendLine($"[{fileName}]({fileName})\r\n");
 
@@ -228,7 +235,7 @@ namespace pixivFanBox
                                                 try
                                                 {
                                                     i++;
-                                                    var image = jobject["imageMap"][item.imageId];
+                                                    var image = jobject["imageMap"][item.ImageId];
                                                     string imageName = $"{i}{Path.GetExtension(image["originalUrl"].ToString())}";
                                                     sb.AppendLine($"![{image["id"]}]({imageName})\r\n");
                                                 }
@@ -243,16 +250,16 @@ namespace pixivFanBox
                                     }
                                 }
 
-                                if (postJson.body.images != null) Log.Info($"圖片數量: {postJson.body.images.Count}");
-                                if (postJson.body.files != null) Log.Info($"檔案數量: {postJson.body.files.Count}");
-                                using (ProgressBar progressBar = new ProgressBar())
+                                if (info.Images != null) Log.Info($"圖片數量: {info.Images.Count}");
+                                if (info.Files != null) Log.Info($"檔案數量: {info.Files.Count}");
+                                using (var progressBar = new ProgressBar())
                                 {
-                                    if (postJson.body.images != null)
+                                    if (info.Images != null) // 尚未測試
                                     {
                                         i = 0;
-                                        foreach (var item in postJson.body.images.Select((x) => new KeyValuePair<string, string>(x.originalUrl, x.thumbnailUrl)))
+                                        foreach (var item in info.Images.Select((x) => new KeyValuePair<string, string>(x.OriginalUrl, x.ThumbnailUrl)))
                                         {
-                                            progressBar.Report(i++ / (double)postJson.body.images.Count);
+                                            progressBar.Report(i++ / (double)info.Images.Count);
                                             try
                                             {
                                                 string imageName = $"{i}{Path.GetExtension(item.Key)}";
@@ -276,19 +283,19 @@ namespace pixivFanBox
                                         }
                                     }
 
-                                    if (postJson.body.files != null)
+                                    if (info.Files != null)
                                     {
                                         i = 0;
-                                        foreach (var item in postJson.body.files)
+                                        foreach (var item in info.Files)
                                         {
-                                            progressBar.Report(i++ / (double)postJson.body.files.Count);
+                                            progressBar.Report(i++ / (double)info.Files.Count);
                                             try
                                             {
-                                                string fileName = MakeFileNameValid($"{item.name.Replace(" ", "_")}.{item.extension}");
-                                                await File.WriteAllBytesAsync(saveName + GetEnvSlash() + fileName, await httpClient.GetByteArrayAsync(item.url));
+                                                string fileName = MakeFileNameValid($"{item.Name.Replace(" ", "_")}.{item.Extension}");
+                                                await File.WriteAllBytesAsync(saveName + GetEnvSlash() + fileName, await httpClient.GetByteArrayAsync(item.Url));
                                                 sb.AppendLine($"[{fileName}]({fileName})\r\n");
 
-                                                if (item.extension == "png" || item.extension == "jpg" || item.extension == "jpeg" || item.extension == "gif")
+                                                if (item.Extension == "png" || item.Extension == "jpg" || item.Extension == "jpeg" || item.Extension == "gif")
                                                     sb.AppendLine($"![{fileName}]({fileName})\r\n");
                                             }
                                             catch (Exception ex) { Console.WriteLine(ex.ToString()); if (ex.Message.Contains("403")) return; }
@@ -297,14 +304,14 @@ namespace pixivFanBox
                                 }
 
                                 MarkdownPipelineBuilder pipelineBuilder = new MarkdownPipelineBuilder().UseAutoLinks();
-                                if (postJson.body.video != null && postJson.body.video.serviceProvider == "youtube")
-                                {
-                                    sb.AppendLine($"![youtube.com](https://www.youtube.com/watch?v={postJson.body.video.videoId})\r\n");
-                                    pipelineBuilder = pipelineBuilder.UseMediaLinks();
-                                }
+                                //if (postJson.body.video != null && postJson.body.video.serviceProvider == "youtube")
+                                //{
+                                //    sb.AppendLine($"![youtube.com](https://www.youtube.com/watch?v={postJson.body.video.videoId})\r\n");
+                                //    pipelineBuilder = pipelineBuilder.UseMediaLinks();
+                                //}
 
-                                if (postJson.body.text != null)
-                                    sb.AppendLine($"{postJson.body.text}");
+                                if (info.Text != null)
+                                    sb.AppendLine(info.Text);
 
                                 string html = Markdown.ToHtml(sb.ToString(), pipelineBuilder.Build());
                                 await File.WriteAllTextAsync($"{saveName}{GetEnvSlash()}Post.html", html); //可能會有非同步存取的問題
@@ -333,7 +340,7 @@ namespace pixivFanBox
                                                 string downloadUrl = item.Replace("nu/", "nu/download.php?file=");
                                                 var uri = new Uri(downloadUrl);
                                                 string gfCookie = await GetCookieFromWebServerAsync(httpClient, item, "gfsid");
-                                                handler.CookieContainer.Add(new Cookie("gfsid", gfCookie, "/", uri.Host));
+                                                clientHandler.CookieContainer.Add(new Cookie("gfsid", gfCookie, "/", uri.Host));
 
                                                 string fileName = MakeFileNameValid(await GetFilenameFromWebServerAsync(httpClient, downloadUrl));
 
@@ -350,15 +357,15 @@ namespace pixivFanBox
                                 if (html.Contains("drive.google.com"))
                                 {
                                     Log.Warn("此貼文包含雲端連結，請確認是否需要自行下載附件");
-                                    Log.Warn($"https://www.fanbox.cc/@{postJson.creatorId}/posts/{postJson.id}");
+                                    Log.Warn($"https://www.fanbox.cc/@{info.CreatorId}/posts/{info.Id}");
                                 }
                             }
-                        } while (!string.IsNullOrEmpty(apiUrl));
+                        }
 
-                        if (lastSavePostId.ContainsKey(creators.creatorId))
-                            lastSavePostId[creators.creatorId] = maxPostId;
+                        if (lastSavePostId.ContainsKey(creators.CreatorId))
+                            lastSavePostId[creators.CreatorId] = maxPostId;
                         else
-                            lastSavePostId.Add(creators.creatorId, maxPostId);
+                            lastSavePostId.Add(creators.CreatorId, maxPostId);
 
                         await File.WriteAllTextAsync("LastSavePostId.json", JsonConvert.SerializeObject(lastSavePostId, Formatting.Indented));
                     }
@@ -366,9 +373,9 @@ namespace pixivFanBox
                 catch (Exception ex)
                 {
                     if (ex.Message.Contains("400"))
-                        Log.Error("缺少Cookie，請重新輸入Cookie");
+                        Log.Error("缺少 Cookie，請重新輸入 Cookie");
                     else if (ex.Message.Contains("401"))
-                        Log.Error($"{cookieId}的Cookie錯誤，請重新輸入Cookie");
+                        Log.Error($"{cookieId} 的 Cookie 錯誤，請重新輸入 Cookie");
                     else
                         Log.Error($"{ex}");
 
@@ -379,7 +386,7 @@ namespace pixivFanBox
 
             File.WriteAllText("SupportList.json", JsonConvert.SerializeObject(userSupportingDic, Formatting.Indented));
 
-            Console.Title = $"FANBox下載工具";
+            Console.Title = $"Fanbox 下載工具";
             Log.Green("全部完成，請按任意鍵繼續...");
             Console.ReadKey();
         }
@@ -490,12 +497,17 @@ namespace pixivFanBox
             try
             {
                 string listSavePath = AppDomain.CurrentDomain.BaseDirectory + "SavePathList.json";
-                if (File.Exists(listSavePath)) return JsonConvert.DeserializeObject<Dictionary<string, string>>(File.ReadAllText(listSavePath));
+                if (File.Exists(listSavePath))
+                {
+                    return JsonConvert.DeserializeObject<Dictionary<string, string>>(File.ReadAllText(listSavePath));
+                }
                 else
                 {
-                    var dic = new Dictionary<string, string>();
-                    dic.Add("savePath", Environment.GetFolderPath(Environment.SpecialFolder.Desktop) + $"{GetEnvSlash()}FanBox下載");
-                    dic.Add("default", "2. 贊助類(圖&影)");
+                    var dic = new Dictionary<string, string>
+                    {
+                        { "savePath", Environment.GetFolderPath(Environment.SpecialFolder.Desktop) + $"{GetEnvSlash()}FanBox下載" },
+                        { "default", "2. 贊助類(圖&影)" }
+                    };
                     File.WriteAllText(listSavePath, JsonConvert.SerializeObject(dic, Formatting.Indented));
                     return dic;
                 }
@@ -505,7 +517,7 @@ namespace pixivFanBox
 
         static string GetSaveFolderName(string creatorId, string creatorName)
         {
-            creatorName = MakePathNameValid(creatorName.Split(new char[] { '@' }).First());
+            creatorName = MakeFileNameValid(creatorName.Split(new char[] { '@' }).First());
 
             if (creatorConvertList == null)
                 creatorConvertList = GetCreatorConvertList();
@@ -522,7 +534,3 @@ namespace pixivFanBox
         static string GetEnvSlash() => RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "\\" : "/";
     }
 }
-#pragma warning restore CS8600 // 正在將 Null 常值或可能的 Null 值轉換為不可為 Null 的型別。
-#pragma warning restore CS8602 // 可能 null 參考的取值 (dereference)。
-#pragma warning restore CS8603 // 可能有 Null 參考傳回。
-#pragma warning restore CS8604 // 可能有 Null 參考引數。

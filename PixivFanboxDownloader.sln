@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.32112.339
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "pixivFANBox", "pixivFANBox\pixivFANBox.csproj", "{F6D0C989-55F5-4EA9-B98A-5054BD8FBD6D}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PixivFanboxDownloader", "PixivFanboxDownloader\PixivFanboxDownloader.csproj", "{F6D0C989-55F5-4EA9-B98A-5054BD8FBD6D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
