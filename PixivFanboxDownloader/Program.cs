@@ -122,26 +122,49 @@ namespace PixivFanboxDownloader
                         var paginateCreator = JsonConvert.DeserializeObject<Json.Post.PaginateCreator>(json).Body;
                         Log.Info($"(分頁數量: {paginateCreator.Count}) ", false);
 
-                        int maxPostId = 0; bool isFirst = true;
+                        //int maxPostId = 0;
+                        int firstPostId = -1;
+                        bool isFirst = true, isNoNeedToDownload = false;
                         foreach (var paginateUrl in paginateCreator)
                         {
+                            if (isNoNeedToDownload)
+                                break;
+
                             json = await httpClient.GetStringAsync(paginateUrl.Replace("https://api.fanbox.cc/", ""));
                             var postListCreatorJson = JsonConvert.DeserializeObject<Json.Post.ListCreator.ListCreator>(json, new JsonSerializerSettings() { ReferenceLoopHandling = ReferenceLoopHandling.Ignore, TypeNameAssemblyFormatHandling = TypeNameAssemblyFormatHandling.Full })!;
 
-                            maxPostId = Math.Max(postListCreatorJson.Body.Max((x) => int.Parse(x.Id)), maxPostId);
+                            //maxPostId = Math.Max(postListCreatorJson.Body.Max((x) => int.Parse(x.Id)), maxPostId);
 
+                            // 取得上次保存的貼文 ID
+                            int lastPostId = 0;
                             if (lastSavePostId.ContainsKey(creators.CreatorId))
-                                postListCreatorJson.Body = postListCreatorJson.Body.Where((x) => int.Parse(x.Id) > lastSavePostId[creators.CreatorId]).ToList();
-
-                            if (!postListCreatorJson.Body.Any())
                             {
-                                Log.Info("無最新貼文");
-                                break;
+                                lastPostId = lastSavePostId[creators.CreatorId];
                             }
-                            else if (isFirst) { Console.WriteLine(); isFirst = false; }
+
+                            // 取得第一篇貼文的 ID 以供下次比對
+                            if (firstPostId == -1)
+                            {
+                                // 不保存置頂貼文避免出現判定問題
+                                firstPostId = int.Parse(postListCreatorJson.Body.First((x) => !x.IsPinned).Id);
+                            }
+
+                            //postListCreatorJson.Body = postListCreatorJson.Body.Where((x) => int.Parse(x.Id) > lastSavePostId[creators.CreatorId]).ToList();
 
                             foreach (var postListCreator in postListCreatorJson.Body)
                             {
+                                if (lastPostId.ToString() == postListCreator.Id)
+                                {
+                                    Log.Info("已到最後保存的貼文");
+                                    isNoNeedToDownload = true;
+                                    break;
+                                }
+                                else if (isFirst)
+                                {
+                                    Console.WriteLine();
+                                    isFirst = false;
+                                }
+
                                 json = await httpClient.GetStringAsync($"post.info?postId={postListCreator.Id}");
                                 var info = JsonConvert.DeserializeObject<Json.Post.Info.Info>(json).InfoBody;
 
@@ -171,7 +194,6 @@ namespace PixivFanboxDownloader
                                 var sb = new StringBuilder();
                                 sb.AppendLine($"# {info.Title}\r\n");
 
-                                //JObject jobject = JObject.Parse(JsonConvert.SerializeObject(json))["body"].ToObject<JObject>();
                                 if (info.Body.Blocks != null)
                                 {
                                     var jobject = JObject.Parse(json)["body"]["body"].ToObject<JObject>();
@@ -316,7 +338,7 @@ namespace PixivFanboxDownloader
                                 string html = Markdown.ToHtml(sb.ToString(), pipelineBuilder.Build());
                                 await File.WriteAllTextAsync($"{saveName}{GetEnvSlash()}Post.html", html); //可能會有非同步存取的問題
 
-                                Regex regex = new Regex(@"https:\/\/\d{1,2}\.gigafile\.nu\/\d{4}-.{33}", RegexOptions.Multiline);
+                                Regex regex = new(@"https:\/\/\d{1,2}\.gigafile\.nu\/\d{4}-.{33}", RegexOptions.Multiline);
                                 if (regex.IsMatch(html))
                                 {
                                     List<string> gigafileList = new List<string>();
@@ -329,7 +351,7 @@ namespace PixivFanboxDownloader
                                     Log.Info($"gigafile數量: {gigafileList.Count}");
 
                                     i = 0;
-                                    using (ProgressBar progressBar = new ProgressBar())
+                                    using (ProgressBar progressBar = new())
                                     {
                                         foreach (var item in gigafileList)
                                         {
@@ -363,9 +385,9 @@ namespace PixivFanboxDownloader
                         }
 
                         if (lastSavePostId.ContainsKey(creators.CreatorId))
-                            lastSavePostId[creators.CreatorId] = maxPostId;
+                            lastSavePostId[creators.CreatorId] = firstPostId;
                         else
-                            lastSavePostId.Add(creators.CreatorId, maxPostId);
+                            lastSavePostId.Add(creators.CreatorId, firstPostId);
 
                         await File.WriteAllTextAsync("LastSavePostId.json", JsonConvert.SerializeObject(lastSavePostId, Formatting.Indented));
                     }
